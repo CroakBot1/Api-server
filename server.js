@@ -70,7 +70,6 @@ app.use("/api/v3/*", async (req, res) => {
       resp = await fetch(targetUrl, { timeout: 8000 });
     }
 
-    // Try return JSON, fallback to text
     const text = await resp.text();
     try {
       res.json(JSON.parse(text));
@@ -99,9 +98,26 @@ app.get("/prices", async (req, res) => {
 app.get("/", (req, res) => {
   res.json({
     message: "API Proxy Server Running",
+    keepalive: "/keep-alive",
     endpoints: ["/prices", "/api/v3/..."]
   });
 });
+
+// 🔹 Keep-alive route
+app.get("/keep-alive", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// 🔹 Self-ping every 4 minutes (prevent sleep on Render/Heroku)
+const SELF_URL = process.env.SELF_URL || `http://localhost:${PORT}`;
+setInterval(async () => {
+  try {
+    const res = await fetch(`${SELF_URL}/keep-alive`);
+    console.log("🔄 Self-ping:", res.status);
+  } catch (err) {
+    console.error("❌ Self-ping failed:", err.message);
+  }
+}, 240000); // 4 minutes
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
