@@ -1,7 +1,7 @@
 {
   "name": "binance-proxy-server",
-  "version": "1.0.0",
-  "description": "Server-side proxy for Binance API with fallback bases",
+  "version": "1.1.0",
+  "description": "Server-side proxy for Binance API with fallback bases and CORS enabled",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -9,12 +9,15 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.19.2",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
   },
-  "author": "",
+  "engines": {
+    "node": ">=18"
+  },
   "license": "MIT"
 }
