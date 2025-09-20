@@ -22,7 +22,7 @@ async function safeJson(res) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    console.error("❌ Not valid JSON:", text.slice(0, 200)); // show snippet
+    console.error("❌ Not valid JSON:", text.slice(0, 200));
     throw new Error("Invalid JSON response");
   }
 }
@@ -53,36 +53,53 @@ async function getBase() {
   return currentBase;
 }
 
-// 🔹 /prices endpoint
-app.get("/prices", async (req, res) => {
+// 🔹 Generic proxy handler for all Binance endpoints
+app.use("/api/v3/*", async (req, res) => {
   try {
     let base = await getBase();
-    let url = `${base}/api/v3/ticker/price`;
-    let data;
+    let targetUrl = base + req.originalUrl;
 
+    let resp;
     try {
-      const resp = await fetch(url, { timeout: 8000 });
-      data = await safeJson(resp);
+      resp = await fetch(targetUrl, { timeout: 8000 });
     } catch (err) {
-      console.warn("⚠️ Current base failed, rotating...");
+      console.warn("⚠️ Base failed, rotating...");
       currentBase = null;
       base = await getBase();
-      const resp = await fetch(`${base}/api/v3/ticker/price`);
-      data = await safeJson(resp);
+      targetUrl = base + req.originalUrl;
+      resp = await fetch(targetUrl, { timeout: 8000 });
     }
 
-    res.json(data);
+    // Try return JSON, fallback to text
+    const text = await resp.text();
+    try {
+      res.json(JSON.parse(text));
+    } catch {
+      res.send(text);
+    }
   } catch (err) {
     console.error("Server error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 🔹 Root route (para dili 500 error sa /)
+// 🔹 Shortcut for prices
+app.get("/prices", async (req, res) => {
+  try {
+    let base = await getBase();
+    const resp = await fetch(`${base}/api/v3/ticker/price`, { timeout: 8000 });
+    const data = await safeJson(resp);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 Root route
 app.get("/", (req, res) => {
   res.json({
     message: "API Proxy Server Running",
-    endpoints: ["/prices"]
+    endpoints: ["/prices", "/api/v3/..."]
   });
 });
 
