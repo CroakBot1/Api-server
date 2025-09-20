@@ -1,9 +1,12 @@
 // server.js
 import express from "express";
 import fetch from "node-fetch";
+import cors from "cors";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(cors()); // 🔥 allow all origins by default
 
 const BASES = [
   "https://api.binance.com",
@@ -12,7 +15,6 @@ const BASES = [
   "https://croak-pwa.vercel.app"
 ];
 
-// Detect working base
 async function detectBase() {
   for (const base of BASES) {
     try {
@@ -28,29 +30,24 @@ async function detectBase() {
   throw new Error("No working base found");
 }
 
-// API endpoint: GET /prices
 app.get("/prices", async (req, res) => {
   try {
     const base = await detectBase();
 
-    // Get exchange info (symbols)
     const infoRes = await fetch(base + "/api/v3/exchangeInfo");
     const info = await infoRes.json();
     const symbols = info.symbols
       .filter(s => s.status === "TRADING")
       .map(s => s.symbol);
 
-    // Get all ticker prices
     const priceRes = await fetch(
-      base + "/api/v3/ticker/price?symbols=" + encodeURIComponent(JSON.stringify(symbols))
+      base + "/api/v3/ticker/price?symbols=" +
+        encodeURIComponent(JSON.stringify(symbols))
     );
     const prices = await priceRes.json();
 
-    res.json({
-      base,
-      count: prices.length,
-      prices
-    });
+    res.setHeader("Access-Control-Allow-Origin", "*"); // 🔥 important for browser
+    res.json({ base, count: prices.length, prices });
   } catch (err) {
     console.error("Server error:", err.message);
     res.status(500).json({ error: err.message });
