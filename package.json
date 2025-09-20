@@ -1,7 +1,7 @@
 {
-  "name": "binance-proxy-rotate",
+  "name": "api-proxy-server",
   "version": "1.0.0",
-  "description": "Express proxy for Binance API with rotating bases and safe JSON parsing",
+  "description": "Binance proxy API with failover and keep-alive",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -11,13 +11,21 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^2.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.x"
   },
+  "keywords": [
+    "binance",
+    "api",
+    "proxy",
+    "express",
+    "keep-alive"
+  ],
+  "author": "",
   "license": "MIT"
 }
