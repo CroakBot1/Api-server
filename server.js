@@ -1,13 +1,14 @@
+// server.js
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
+import fetch from "node-fetch";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 
-// 🔹 API Bases (imo list)
+const PORT = process.env.PORT || 3000;
+
+// 🔹 Bases (mo-rotate/failover)
 const BASES = [
   "https://api.binance.com",
   "https://croak-express-gateway-henna.vercel.app",
@@ -15,54 +16,76 @@ const BASES = [
   "https://croak-pwa.vercel.app"
 ];
 
-// 🔹 Index para mag-rotate
-let baseIndex = 0;
-
-// 🔹 Get next base in rotation
-function getNextBase() {
-  const base = BASES[baseIndex];
-  baseIndex = (baseIndex + 1) % BASES.length; // balik sa 0 kung naabot sa last
-  return base;
-}
-
-// 🔹 Safe JSON parser
+// 🔹 Helper: safe JSON parse
 async function safeJson(res) {
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    const text = await res.text();
-    throw new Error("Expected JSON but got: " + text.slice(0, 100));
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    console.error("❌ Not valid JSON:", text.slice(0, 200)); // show snippet
+    throw new Error("Invalid JSON response");
   }
-  return res.json();
 }
 
-// 🔹 API endpoint
-app.get("/prices", async (req, res) => {
-  const pairs = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"];
-  const tried = [];
-
-  for (let i = 0; i < BASES.length; i++) {
-    const base = getNextBase();
-    tried.push(base);
+// 🔹 Detect first working base
+async function detectBase() {
+  for (let base of BASES) {
     try {
-      console.log("🔄 Trying base:", base);
-      const priceRes = await fetch(
-        base + "/api/v3/ticker/price?symbols=" + encodeURIComponent(JSON.stringify(pairs)),
-        { timeout: 7000 }
-      );
-
-      const prices = await safeJson(priceRes);
-
-      console.log("✅ Success via:", base);
-      return res.json({ base, count: prices.length, prices });
+      const res = await fetch(`${base}/api/v3/ping`, { timeout: 5000 });
+      if (res.ok) {
+        console.log("✅ Using base:", base);
+        return base;
+      }
     } catch (err) {
-      console.error("❌ Failed base:", base, "-", err.message);
+      console.error("❌ Failed base:", base, err.message);
     }
   }
+  throw new Error("No working base found.");
+}
 
-  res.status(500).json({ error: "All bases failed", tried });
+// 🔹 Cache current base (auto-rotate if fail)
+let currentBase = null;
+
+async function getBase() {
+  if (!currentBase) {
+    currentBase = await detectBase();
+  }
+  return currentBase;
+}
+
+// 🔹 /prices endpoint
+app.get("/prices", async (req, res) => {
+  try {
+    let base = await getBase();
+    let url = `${base}/api/v3/ticker/price`;
+    let data;
+
+    try {
+      const resp = await fetch(url, { timeout: 8000 });
+      data = await safeJson(resp);
+    } catch (err) {
+      console.warn("⚠️ Current base failed, rotating...");
+      currentBase = null;
+      base = await getBase();
+      const resp = await fetch(`${base}/api/v3/ticker/price`);
+      data = await safeJson(resp);
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error("Server error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// 🔹 Start server
+// 🔹 Root route (para dili 500 error sa /)
+app.get("/", (req, res) => {
+  res.json({
+    message: "API Proxy Server Running",
+    endpoints: ["/prices"]
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
